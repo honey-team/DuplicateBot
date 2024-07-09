@@ -2,7 +2,7 @@ import asyncio
 import logging
 import sys
 from io import BytesIO
-from os import getenv
+from os import environ
 from typing import Any
 
 from aiogram import Bot, Dispatcher, html
@@ -15,12 +15,12 @@ from discord import Client, Intents, File
 
 from json import loads
 
-TELEGRAM_TOKEN = getenv("TELEGRAM_TOKEN")
-TELEGRAM_CHAT_ID = int(getenv("TELEGRAM_CHAT_ID"))
-DISCORD_TOKEN = getenv("DISCORD_TOKEN")
-DEVLOG_GUILD_ID = int(getenv("DEVLOG_GUILD_ID"))
-DEVLOG_CHANNEL_ID = int(getenv("DEVLOG_CHANNEL_ID"))
-DEVLOG_ROLE_ID = int(getenv("DEVLOG_ROLE_ID"))
+
+TELEGRAM_TOKEN = environ.get("TELEGRAM_TOKEN")
+TELEGRAM_CHAT_ID = -1002174772013
+DISCORD_TOKEN = environ.get("DISCORD_TOKEN")
+DEVLOG_CHANNEL_ID = 1259486814620614778
+DEVLOG_ROLE_ID = 1146435141045076048
 
 tbot = Bot(token=TELEGRAM_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN))
 dbot = Client(intents=Intents.default())
