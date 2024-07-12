@@ -22,6 +22,8 @@ DISCORD_TOKEN = environ.get("DISCORD_TOKEN")
 DEVLOG_CHANNEL_ID = 1142537004542857336
 DEVLOG_ROLE_ID = 1146435141045076048
 
+AUTO_PUBLISH = True
+
 tbot = Bot(token=TELEGRAM_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN))
 dbot = Client(intents=Intents.default())
 dp = Dispatcher()
@@ -68,11 +70,13 @@ async def channel_post_handler(mes: Message):
     author = members.get(author, author)
 
     if content:
-        content += f'\n\nАвтор: {author}\n[Ссылка на сообщение в Telegram]({mes.get_url()})'
+        content += f'\n-# {author}・[Сообщение](<{mes.get_url()}>)'
 
     if content or dfile:
         ch = dbot.get_channel(DEVLOG_CHANNEL_ID)
-        await ch.send(content, file=dfile)
+        sended_message = await ch.send(content, file=dfile)
+        if AUTO_PUBLISH and ch.is_news():
+            await sended_message.publish()
 
 async def main() -> None:
     await asyncio.gather(dp.start_polling(tbot), dbot.start(DISCORD_TOKEN))
