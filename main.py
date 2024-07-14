@@ -11,6 +11,7 @@ from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart, Command
 from aiogram.types import ChatMemberOwner, ChatMemberAdministrator
 from aiogram.types import Message as TMessage
+from aiogram.types import Chat as TChat
 
 from discord import Client, Intents, File, CustomActivity, Status
 from discord import Message as DMessage
@@ -20,13 +21,25 @@ from json import loads
 from jmessages import mload, mwrite
 
 
-TELEGRAM_TOKEN = environ.get("TELEGRAM_TOKEN")
+TELEGRAM_TOKEN = environ["TELEGRAM_TOKEN"]
 TELEGRAM_CHAT_ID = -1002174772013
-DISCORD_TOKEN = environ.get("DISCORD_TOKEN")
-DEVLOG_CHANNEL_ID = 1142537004542857336
-DEVLOG_ROLE_ID = 1146435141045076048
+
+DISCORD_TOKEN = environ["DISCORD_TOKEN"]
+DISCORD_DEVLOG_CHANNEL_ID = 1142537004542857336
+DISCORD_DEVLOG_ROLE_ID = 1146435141045076048  # Set to `None` to disable /ping command
 
 AUTO_PUBLISH = True
+DISCORD_MESSAGE_FOOTER = True
+DISCORD_PRESENCE_TELEGRAM_LINK = True
+
+# Messages
+START_MESSAGE = 'Hello, %s'  # %s - name of user who used /start command
+
+PING_SUCCESFUL = 'Пинг девлога успешно отправлен!'
+PING_NOT_ENABLED = 'В этом боте выключена возможность пинговать роль девлога!'
+PING_YOURE_NOT_ADMIN = 'Вы не администратор девлога!'
+
+DISCORD_CONTENT_TELEGRAM_MESSAGE_LINK_TEXT = 'Сообщения'
 
 tbot = Bot(token=TELEGRAM_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN))
 dbot = Client(intents=Intents.default())
@@ -37,59 +50,99 @@ with open('members.json', encoding='utf-8') as f:
 
 
 @dp.message(CommandStart())
-async def command_start_handler(message: TMessage) -> None:
-    await message.answer(f"Hello, {html.bold(message.from_user.full_name)}!")
+async def command_start_handler(message: TMessage):
+    await message.answer(START_MESSAGE % message.from_user.full_name)
 
 @dp.message(Command('ping'))
 async def command_ping_handler(message: TMessage):
     member = await tbot.get_chat_member(TELEGRAM_CHAT_ID, message.from_user.id)
     if isinstance(member, (ChatMemberOwner, ChatMemberAdministrator)) or member.is_chat_admin():
-        ch = dbot.get_channel(DEVLOG_CHANNEL_ID)
-        await ch.send(f'<@&{DEVLOG_ROLE_ID}>')
+        if DISCORD_DEVLOG_ROLE_ID:
+            ch = dbot.get_channel(DISCORD_DEVLOG_CHANNEL_ID)
+            await ch.send(f'<@&{DISCORD_DEVLOG_ROLE_ID}>')
 
-        await message.answer('Пинг девлога успешно отправлен!')
+            await message.answer(PING_SUCCESFUL)
+        else:
+            await message.answer(PING_NOT_ENABLED)
     else:
-        await message.answer('Вы не администратор девлога!')
+        await message.answer(PING_YOURE_NOT_ADMIN)
 
-@dp.channel_post()
-async def channel_post_handler(mes: TMessage):
-    if mes.chat.id != TELEGRAM_CHAT_ID:
-        return
+async def send_message_to_devlog_in_discord(content: str, dfile: File) -> DMessage:
+    ch = dbot.get_channel(DISCORD_DEVLOG_CHANNEL_ID)
+    sended_message = await ch.send(content, file=dfile)
+    if AUTO_PUBLISH and ch.is_news():
+        await sended_message.publish()
 
-    if mes.photo:
-        file_id = mes.photo[-1].file_id
+    return sended_message
+
+async def edit_message_in_devlog_in_discord(telegram_message_id: int, new_content: str) -> DMessage:
+    # Get discord message id
+    m = mload()
+    discord_id = m[str(telegram_message_id)]
+
+    # Get message and edit it
+    ch = dbot.get_channel(DISCORD_DEVLOG_CHANNEL_ID)
+    message = await ch.fetch_message(discord_id)
+
+    return await message.edit(content=new_content)
+
+async def get_content_and_dfile(message: TMessage) -> tuple[str, File]:
+    if message.photo:
+        file_id = message.photo[-1].file_id
         file = await tbot.get_file(file_id)
         file_path = file.file_path
         file_binary: BytesIO = await tbot.download_file(file_path)
         dfile = File(fp=file_binary, filename='image.png')
 
-        content = mes.caption
+        content = message.caption
     else:
         dfile = None
 
-        content = mes.md_text
+        content = message.md_text
         content = content.replace('\\', '')
 
-    author = mes.author_signature
+    author = message.author_signature
     author = members.get(author, author)
 
-    if content:
-        content += f'\n-# {author}・[Сообщение](<{mes.get_url()}>)'
+    if DISCORD_MESSAGE_FOOTER and content:
+        content += f'\n-# {author}・[{DISCORD_CONTENT_TELEGRAM_MESSAGE_LINK_TEXT}](<{message.get_url()}>)'
+    return content, dfile
+
+@dp.channel_post()
+async def channel_post_handler(message: TMessage):
+    if message.chat.id != TELEGRAM_CHAT_ID:
+        return
+
+    content, dfile = await get_content_and_dfile(message)
 
     if content or dfile:
-        ch = dbot.get_channel(DEVLOG_CHANNEL_ID)
-        sended_message = await ch.send(content, file=dfile)
-        if AUTO_PUBLISH and ch.is_news():
-            await sended_message.publish()
+        sended_message = await send_message_to_devlog_in_discord(content, dfile)
 
         m = mload()
-        m[str(mes.message_id)] = sended_message.id
+        m[str(message.message_id)] = sended_message.id
         mwrite(m)
+
+@dp.edited_channel_post()
+async def edited_channel_post_handler(message: TMessage):
+    if message.chat.id != TELEGRAM_CHAT_ID:
+        return
+
+    content, _ = await get_content_and_dfile(message)
+
+    await edit_message_in_devlog_in_discord(message.message_id, content)
 
 @dbot.event
 async def on_ready() -> None:
-    activity = CustomActivity(name='https://t.me/HoneyTeamC')
-    await dbot.change_presence(activity=activity, status=Status.dnd)
+    if DISCORD_PRESENCE_TELEGRAM_LINK:
+        chat = await tbot.get_chat(TELEGRAM_CHAT_ID)
+
+        if chat.username:
+            url = f'https://t.me/{chat.username}'
+        else:
+            url = chat.invite_link
+
+        activity = CustomActivity(name=url)
+        await dbot.change_presence(activity=activity, status=Status.dnd)
 
 @dbot.event
 async def on_message_delete(message: DMessage):
