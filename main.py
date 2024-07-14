@@ -9,11 +9,15 @@ from aiogram import Bot, Dispatcher, html
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart, Command
-from aiogram.types import Message, ChatMemberOwner, ChatMemberAdministrator
+from aiogram.types import ChatMemberOwner, ChatMemberAdministrator
+from aiogram.types import Message as TMessage
 
-from discord import Client, Intents, File
+from discord import Client, Intents, File, CustomActivity, Status
+from discord import Message as DMessage
 
 from json import loads
+
+from jmessages import mload, mwrite
 
 
 TELEGRAM_TOKEN = environ.get("TELEGRAM_TOKEN")
@@ -33,11 +37,11 @@ with open('members.json', encoding='utf-8') as f:
 
 
 @dp.message(CommandStart())
-async def command_start_handler(message: Message) -> None:
+async def command_start_handler(message: TMessage) -> None:
     await message.answer(f"Hello, {html.bold(message.from_user.full_name)}!")
 
 @dp.message(Command('ping'))
-async def command_ping_handler(message: Message):
+async def command_ping_handler(message: TMessage):
     member = await tbot.get_chat_member(TELEGRAM_CHAT_ID, message.from_user.id)
     if isinstance(member, (ChatMemberOwner, ChatMemberAdministrator)) or member.is_chat_admin():
         ch = dbot.get_channel(DEVLOG_CHANNEL_ID)
@@ -48,7 +52,7 @@ async def command_ping_handler(message: Message):
         await message.answer('Вы не администратор девлога!')
 
 @dp.channel_post()
-async def channel_post_handler(mes: Message):
+async def channel_post_handler(mes: TMessage):
     if mes.chat.id != TELEGRAM_CHAT_ID:
         return
 
@@ -77,6 +81,30 @@ async def channel_post_handler(mes: Message):
         sended_message = await ch.send(content, file=dfile)
         if AUTO_PUBLISH and ch.is_news():
             await sended_message.publish()
+
+        m = mload()
+        m[str(mes.message_id)] = sended_message.id
+        mwrite(m)
+
+@dbot.event
+async def on_ready() -> None:
+    activity = CustomActivity(name='https://t.me/HoneyTeamC')
+    await dbot.change_presence(activity=activity, status=Status.dnd)
+
+@dbot.event
+async def on_message_delete(message: DMessage):
+    m = mload()
+
+    try:
+        i = list(m.values()).index(message.id)
+    except ValueError:
+        return  # Deleted message which there isn't in telegram channel
+    tmessage_id = int(list(m.keys())[i])
+
+    await tbot.delete_message(TELEGRAM_CHAT_ID, tmessage_id)
+
+    del m[str(tmessage_id)]
+    mwrite(m)
 
 async def main() -> None:
     await asyncio.gather(dp.start_polling(tbot), dbot.start(DISCORD_TOKEN))
