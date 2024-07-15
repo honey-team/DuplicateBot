@@ -5,18 +5,21 @@ from io import BytesIO
 from os import environ
 from typing import Any
 
-from aiogram import Bot, Dispatcher, html
+from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart, Command
 from aiogram.types import ChatMemberOwner, ChatMemberAdministrator
 from aiogram.types import Message as TMessage
-from aiogram.types import Chat as TChat
 
 from discord import Client, Intents, File, CustomActivity, Status
 from discord import Message as DMessage
 
 from json import loads
+
+from markdownify import markdownify
+
+from bs4 import Tag
 
 from jmessages import mload, mwrite
 
@@ -28,12 +31,20 @@ DISCORD_TOKEN = environ["DISCORD_TOKEN"]
 DISCORD_DEVLOG_CHANNEL_ID = 1142537004542857336
 DISCORD_DEVLOG_ROLE_ID = 1146435141045076048  # Set to `None` to disable /ping command
 
-AUTO_PUBLISH = True
+# Auto reactions settings
+DISCORD_GUILD_ID: int | bool = 1141324357432528998  # if you want to use unicode emojis set to False
+LIKE_EMOJI_ID: int | str = 1262322255342600265  # Type here unicode emoji if DISCORD_GUILD_ID = False (also for DISLIKE_EMOJI_ID)
+DISLIKE_EMOJI_ID: int | str | bool = 1262322230554136627  # Set to False if you don't want to bot will send two reactions
+
+
+# Settings
+DISCORD_AUTO_PUBLISH = False
 DISCORD_MESSAGE_FOOTER = True
 DISCORD_PRESENCE_TELEGRAM_LINK = True
+ENABLE_AUTO_REACTIONS_IN_DISCORD = True
 
 # Messages
-START_MESSAGE = 'Hello, %s'  # %s - name of user who used /start command
+START_MESSAGE = 'Привет, %s!'  # %s - name of user who used /start command
 
 PING_SUCCESFUL = 'Пинг девлога успешно отправлен!'
 PING_NOT_ENABLED = 'В этом боте выключена возможность пинговать роль девлога!'
@@ -48,6 +59,12 @@ dp = Dispatcher()
 with open('members.json', encoding='utf-8') as f:
     members: dict[str, Any] = loads(f.read())
 
+def md(html: str, **options):
+    def callback(el):
+        code = el.code
+        res = str(code['class'][0]).replace('language-', '') if code.has_attr('class') else None
+        return res
+    return markdownify(html, code_language_callback=callback, **options)
 
 @dp.message(CommandStart())
 async def command_start_handler(message: TMessage):
@@ -70,8 +87,22 @@ async def command_ping_handler(message: TMessage):
 async def send_message_to_devlog_in_discord(content: str, dfile: File) -> DMessage:
     ch = dbot.get_channel(DISCORD_DEVLOG_CHANNEL_ID)
     sended_message = await ch.send(content, file=dfile)
-    if AUTO_PUBLISH and ch.is_news():
+    if DISCORD_AUTO_PUBLISH and ch.is_news():
         await sended_message.publish()
+    if ENABLE_AUTO_REACTIONS_IN_DISCORD:
+        if DISCORD_GUILD_ID is not False:
+            guild = dbot.get_guild(DISCORD_GUILD_ID)
+            like_emoji = guild.get_emoji(LIKE_EMOJI_ID)
+            await sended_message.add_reaction(like_emoji)
+
+            if DISLIKE_EMOJI_ID is not False:
+                dislike_emoji = guild.get_emoji(DISLIKE_EMOJI_ID)
+                await sended_message.add_reaction(dislike_emoji)
+        else:
+            await sended_message.add_reaction(LIKE_EMOJI_ID)
+
+            if DISLIKE_EMOJI_ID is not False:
+                await sended_message.add_reaction(DISLIKE_EMOJI_ID)
 
     return sended_message
 
@@ -98,8 +129,11 @@ async def get_content_and_dfile(message: TMessage) -> tuple[str, File]:
     else:
         dfile = None
 
-        content = message.md_text
-        content = content.replace('\\', '')
+        html = message.html_text
+        content = md(html)
+
+        if content.endswith('\n'):
+            content = content.removesuffix('\n')
 
     author = message.author_signature
     author = members.get(author, author)
