@@ -28,12 +28,23 @@ dp = Dispatcher()
 with open('members.json', encoding='utf-8') as f:
     members: dict[str, Any] = loads(f.read())
 
-def md(html: str, **options):
+def md(html: str) -> str:
     def callback(el):
         code = el.code
         res = str(code['class'][0]).replace('language-', '') if code.has_attr('class') else None
         return res
-    return markdownify(html, code_language_callback=callback, **options)
+
+    res = markdownify(html, code_language_callback=callback)
+
+    replaces = {
+        '\\-': '-',
+        '/-': '-'
+    }
+
+    for k, v in replaces.items():
+        res = res.replace(k, v)
+
+    return res
 
 @dp.message(CommandStart())
 async def command_start_handler(message: TMessage):
@@ -96,11 +107,11 @@ async def reply_to_message_in_devlog_in_discord(reply_telegram_message_id: int, 
 async def edit_message_in_devlog_in_discord(telegram_message_id: int, new_content: str) -> DMessage:
     # Get discord message id
     m = mload()
-    discord_id = m[str(telegram_message_id)]
+    discord_message_id = m[str(telegram_message_id)]
 
     # Get message and edit it
     ch = dbot.get_channel(DISCORD_DEVLOG_CHANNEL_ID)
-    message = await ch.fetch_message(discord_id)
+    message = await ch.fetch_message(discord_message_id)
 
     return await message.edit(content=new_content)
 
@@ -118,9 +129,13 @@ async def get_content_and_dfile(message: TMessage) -> tuple[str, File]:
 
         html = message.html_text
         content = md(html)
+        print(f'{html=}\n{content=}')
 
         if content.endswith('\n'):
             content = content.removesuffix('\n')
+
+        # Bug fix links
+        # content = content.replace('\\-', '-')
 
     author = message.author_signature
     author = members.get(author, author)
