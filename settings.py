@@ -25,4 +25,4 @@ PING_SUCCESFUL = 'Пинг девлога успешно отправлен!'
 PING_NOT_ENABLED = 'В этом боте выключена возможность пинговать роль девлога!'
 PING_YOURE_NOT_ADMIN = 'Вы не администратор девлога!'
 
-DISCORD_CONTENT_TELEGRAM_MESSAGE_LINK_TEXT = 'Сообщения'
+DISCORD_CONTENT_TELEGRAM_MESSAGE_LINK_TEXT = 'Сообщение'
