@@ -129,13 +129,9 @@ async def get_content_and_dfile(message: TMessage) -> tuple[str, File]:
 
         html = message.html_text
         content = md(html)
-        print(f'{html=}\n{content=}')
 
         if content.endswith('\n'):
             content = content.removesuffix('\n')
-
-        # Bug fix links
-        # content = content.replace('\\-', '-')
 
     author = message.author_signature
     author = members.get(author, author)
