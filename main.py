@@ -53,27 +53,45 @@ async def command_ping_handler(message: TMessage):
     else:
         await message.answer(PING_YOURE_NOT_ADMIN)
 
-async def send_message_to_devlog_in_discord(content: str, dfile: File) -> DMessage:
-    ch = dbot.get_channel(DISCORD_DEVLOG_CHANNEL_ID)
-    sended_message = await ch.send(content, file=dfile)
-    if DISCORD_AUTO_PUBLISH and ch.is_news():
-        await sended_message.publish()
+async def send_reactions_to_message(sent_message: DMessage):
     if ENABLE_AUTO_REACTIONS_IN_DISCORD:
         if DISCORD_GUILD_ID is not False:
             guild = dbot.get_guild(DISCORD_GUILD_ID)
             like_emoji = guild.get_emoji(LIKE_EMOJI_ID)
-            await sended_message.add_reaction(like_emoji)
+            await sent_message.add_reaction(like_emoji)
 
             if DISLIKE_EMOJI_ID is not False:
                 dislike_emoji = guild.get_emoji(DISLIKE_EMOJI_ID)
-                await sended_message.add_reaction(dislike_emoji)
+                await sent_message.add_reaction(dislike_emoji)
         else:
-            await sended_message.add_reaction(LIKE_EMOJI_ID)
+            await sent_message.add_reaction(LIKE_EMOJI_ID)
 
             if DISLIKE_EMOJI_ID is not False:
-                await sended_message.add_reaction(DISLIKE_EMOJI_ID)
+                await sent_message.add_reaction(DISLIKE_EMOJI_ID)
 
-    return sended_message
+async def send_message_to_devlog_in_discord(content: str, dfile: File) -> DMessage:
+    ch = dbot.get_channel(DISCORD_DEVLOG_CHANNEL_ID)
+
+    sent_message = await ch.send(content, file=dfile)
+    if DISCORD_AUTO_PUBLISH and ch.is_news():
+        await sent_message.publish()
+    await send_reactions_to_message(sent_message)
+
+    return sent_message
+
+async def reply_to_message_in_devlog_in_discord(reply_telegram_message_id: int, content: str, dfile: File) -> DMessage:
+    # Get discord message id to reply
+    m = mload()
+    discord_message_id_to_reply = m[str(reply_telegram_message_id)]
+
+    # Get and reply to this message
+    ch = dbot.get_channel(DISCORD_DEVLOG_CHANNEL_ID)
+    discord_message_to_reply = await ch.fetch_message(discord_message_id_to_reply)
+
+    sent_message = await discord_message_to_reply.reply(content, file=dfile)
+    await send_reactions_to_message(sent_message)
+
+    return sent_message
 
 async def edit_message_in_devlog_in_discord(telegram_message_id: int, new_content: str) -> DMessage:
     # Get discord message id
@@ -119,10 +137,15 @@ async def channel_post_handler(message: TMessage):
     content, dfile = await get_content_and_dfile(message)
 
     if content or dfile:
-        sended_message = await send_message_to_devlog_in_discord(content, dfile)
+        if message.reply_to_message:  # Is reply
+            reply_to_id = message.reply_to_message.message_id
+
+            sent_message = await reply_to_message_in_devlog_in_discord(reply_to_id, content, dfile)
+        else:
+            sent_message = await send_message_to_devlog_in_discord(content, dfile)
 
         m = mload()
-        m[str(message.message_id)] = sended_message.id
+        m[str(message.message_id)] = sent_message.id
         mwrite(m)
 
 @dp.edited_channel_post()
