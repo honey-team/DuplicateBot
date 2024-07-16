@@ -13,7 +13,7 @@ LIKE_EMOJI_ID: int | str = 1262322255342600265  # Type here unicode emoji if DIS
 DISLIKE_EMOJI_ID: int | str | bool = 1262322230554136627  # Set to False if you don't want to bot will send two reactions
 
 # Settings
-DISCORD_AUTO_PUBLISH = False
+DISCORD_AUTO_PUBLISH = True
 DISCORD_MESSAGE_FOOTER = True
 DISCORD_PRESENCE_TELEGRAM_LINK = True
 ENABLE_AUTO_REACTIONS_IN_DISCORD = True
