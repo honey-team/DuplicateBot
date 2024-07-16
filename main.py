@@ -7,11 +7,12 @@ from typing import Any
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import CommandStart, Command
 from aiogram.types import ChatMemberOwner, ChatMemberAdministrator
 from aiogram.types import Message as TMessage
 
-from discord import Client, Intents, File, CustomActivity, Status
+from discord import Client, Intents, File, CustomActivity, Status, NotFound
 from discord import Message as DMessage
 
 from json import loads
@@ -44,6 +45,8 @@ def md(html: str) -> str:
     for k, v in replaces.items():
         res = res.replace(k, v)
 
+    if res.endswith('\n'):
+        return res.removesuffix('\n')
     return res
 
 @dp.message(CommandStart())
@@ -65,20 +68,23 @@ async def command_ping_handler(message: TMessage):
         await message.answer(PING_YOURE_NOT_ADMIN)
 
 async def send_reactions_to_message(sent_message: DMessage):
-    if ENABLE_AUTO_REACTIONS_IN_DISCORD:
-        if DISCORD_GUILD_ID is not False:
-            guild = dbot.get_guild(DISCORD_GUILD_ID)
-            like_emoji = guild.get_emoji(LIKE_EMOJI_ID)
-            await sent_message.add_reaction(like_emoji)
+    try:
+        if ENABLE_AUTO_REACTIONS_IN_DISCORD:
+            if DISCORD_GUILD_ID is not False:
+                guild = dbot.get_guild(DISCORD_GUILD_ID)
+                like_emoji = guild.get_emoji(LIKE_EMOJI_ID)
+                await sent_message.add_reaction(like_emoji)
 
-            if DISLIKE_EMOJI_ID is not False:
-                dislike_emoji = guild.get_emoji(DISLIKE_EMOJI_ID)
-                await sent_message.add_reaction(dislike_emoji)
-        else:
-            await sent_message.add_reaction(LIKE_EMOJI_ID)
+                if DISLIKE_EMOJI_ID is not False:
+                    dislike_emoji = guild.get_emoji(DISLIKE_EMOJI_ID)
+                    await sent_message.add_reaction(dislike_emoji)
+            else:
+                await sent_message.add_reaction(LIKE_EMOJI_ID)
 
-            if DISLIKE_EMOJI_ID is not False:
-                await sent_message.add_reaction(DISLIKE_EMOJI_ID)
+                if DISLIKE_EMOJI_ID is not False:
+                    await sent_message.add_reaction(DISLIKE_EMOJI_ID)
+    except NotFound:
+        return
 
 async def send_message_to_devlog_in_discord(content: str, dfile: File) -> DMessage:
     ch = dbot.get_channel(DISCORD_DEVLOG_CHANNEL_ID)
@@ -115,23 +121,35 @@ async def edit_message_in_devlog_in_discord(telegram_message_id: int, new_conten
 
     return await message.edit(content=new_content)
 
+async def get_dfile_from_file_id(file_id: str, spoiler: bool = False) -> File:
+    file = await tbot.get_file(file_id)
+    file_path = file.file_path
+    file_binary: BytesIO = await tbot.download_file(file_path)
+
+    extension = file_path.split('.')[-1]
+
+    print(f'{file_path=}\n{file.model_computed_fields}')
+    return File(fp=file_binary, filename=f'file.{extension}', description='hello, world', spoiler=spoiler)
+
 async def get_content_and_dfile(message: TMessage) -> tuple[str, File]:
+    spoiler = False
     if message.photo:
         file_id = message.photo[-1].file_id
-        file = await tbot.get_file(file_id)
-        file_path = file.file_path
-        file_binary: BytesIO = await tbot.download_file(file_path)
-        dfile = File(fp=file_binary, filename='image.png')
+        content = message.caption
 
+        if message.has_media_spoiler:
+            spoiler = True
+    elif message.sticker:
+        file_id = message.sticker.file_id
+        content = None
+    elif message.document:
+        file_id = message.document.file_id
         content = message.caption
     else:
-        dfile = None
+        file_id = None
+        content = md(message.html_text)
 
-        html = message.html_text
-        content = md(html)
-
-        if content.endswith('\n'):
-            content = content.removesuffix('\n')
+    dfile = await get_dfile_from_file_id(file_id, spoiler) if file_id else None
 
     author = message.author_signature
     author = members.get(author, author)
@@ -191,7 +209,10 @@ async def on_message_delete(message: DMessage):
         return  # Deleted message which there isn't in telegram channel
     tmessage_id = int(list(m.keys())[i])
 
-    await tbot.delete_message(TELEGRAM_CHAT_ID, tmessage_id)
+    try:
+        await tbot.delete_message(TELEGRAM_CHAT_ID, tmessage_id)
+    except TelegramBadRequest:  # Deleted message which there isn't in telegram channel, but in messages.json
+        pass
 
     del m[str(tmessage_id)]
     mwrite(m)
