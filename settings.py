@@ -1,28 +1,35 @@
 from os import environ
+from ui import *
 
-TELEGRAM_TOKEN = environ["TELEGRAM_TOKEN"]
-TELEGRAM_CHAT_ID = -1002174772013
+TELEGRAM_TOKEN = environ["TELEGRAM_TOKEN"]  # Don't change this name!!!
+DISCORD_TOKEN = environ["DISCORD_TOKEN"]  # Don't change this name!!!
 
-DISCORD_TOKEN = environ["DISCORD_TOKEN"]
-DISCORD_DEVLOG_CHANNEL_ID = 1142537004542857336
-DISCORD_DEVLOG_ROLE_ID = 1146435141045076048  # Set to `None` to disable /ping command
+# Localisation's settings
+loc = Localisation()  # Don't change this name!!! Used for localisation in telegram bot
+loc.start_message = 'Привет, %s!'  # %s - name of user who used /start command
+loc.ping_succesful = 'Пинг девлога успешно отправлен!'
+loc.ping_not_enabled = 'В этом боте выключена возможность пинговать роль девлога!'
+loc.ping_youre_not_admin = 'Вы не администратор девлога!'
+loc.footer_message_link_text = 'Сообщение'
 
-# Auto reactions settings
-DISCORD_GUILD_ID: int | bool = 1141324357432528998  # if you want to use unicode emojis set to False
-LIKE_EMOJI_ID: int | str = 1262322255342600265  # Type here unicode emoji if DISCORD_GUILD_ID = False (also for DISLIKE_EMOJI_ID)
-DISLIKE_EMOJI_ID: int | str | bool = 1262322230554136627  # Set to False if you don't want to bot will send two reactions
+# Auto reaction's settings
+like_id: int | str = 1263694114088685669  # Type here unicode emoji if you want to use unicode emojies
+dislike_id: int | str = 1262322230554136627  # Also for dislike_id
 
-# Settings
-DISCORD_AUTO_PUBLISH = True
-DISCORD_MESSAGE_FOOTER = True
-DISCORD_PRESENCE_TELEGRAM_LINK = True
-ENABLE_AUTO_REACTIONS_IN_DISCORD = True
+st = Settings(  # Also don't change this name! Used as global settings, but you can use it in handlers
+    loc=loc,
+    reactions=[like_id, dislike_id],
+    guild_id=1141324357432528998,  # guild_id is required if one and more reactions are integers (custom emojies)
+    presence_telegram_link='https://t.me/HoneyTeamC',
+    enable_auto_publish=True,
+    enable_message_footer=True
+)
 
-# Messages
-START_MESSAGE = 'Привет, %s!'  # %s - name of user who used /start command
-
-PING_SUCCESFUL = 'Пинг девлога успешно отправлен!'
-PING_NOT_ENABLED = 'В этом боте выключена возможность пинговать роль девлога!'
-PING_YOURE_NOT_ADMIN = 'Вы не администратор девлога!'
-
-DISCORD_CONTENT_TELEGRAM_MESSAGE_LINK_TEXT = 'Сообщение'
+handlers: list[Handler] = [
+    Handler(
+        1142537004542857336,
+        -1002174772013,
+        st,
+        [1146435141045076048]
+    ),
+]  # Don't change this name!!!
