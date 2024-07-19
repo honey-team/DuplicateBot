@@ -7,7 +7,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart, Command
-from aiogram.types import ChatMemberOwner, ChatMemberAdministrator
+from aiogram.types import ChatMemberOwner, ChatMemberAdministrator, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from aiogram.types import Message as TMessage
 
 from discord import Client, Intents, CustomActivity, Status
@@ -15,7 +15,7 @@ from discord import Message as DMessage
 
 from json import loads
 
-from settings import loc, handlers, TELEGRAM_TOKEN, DISCORD_TOKEN, st
+from settings import loc, handlers, TELEGRAM_TOKEN, DISCORD_TOKEN, st, Handler
 
 tbot = Bot(token=TELEGRAM_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN))
 dbot = Client(intents=Intents.default())
@@ -36,11 +36,7 @@ async def check_for_admin(telegram_channels: list[int], user_id: int) -> bool:
             return True
     return False
 
-@dp.message(Command('ping'))
-async def command_ping_handler(message: TMessage):
-    await message.answer('Выберите хэндлер (dev)')
-    handler = handlers[0]
-
+async def send_ping_for_handler(message: TMessage, handler: Handler):
     is_admin = await check_for_admin(handler.telegram_channels, message.from_user.id)
     if is_admin:
         for i, ch_id in enumerate(handler.discord_channels):
@@ -48,11 +44,48 @@ async def command_ping_handler(message: TMessage):
                 ch = dbot.get_channel(ch_id)
                 await ch.send(f'<@&{handler.ping_role_ids[i]}>')
 
-                await message.answer(f'{ch_id}: {handler.settings.loc.ping_succesful}')
+                suc = sf % ch_id if '%d' in (sf := handler.settings.loc.ping_succesful) else sf
+
+                await message.answer(suc, reply_markup=ReplyKeyboardRemove())
             else:
-                await message.answer(f'{ch_id}: {handler.settings.loc.ping_not_enabled}')
+                ne = nef % ch_id if '%d' in (nef := handler.settings.loc.ping_not_enabled) else nef
+                await message.answer(ne, reply_markup=ReplyKeyboardRemove())
     else:
-        await message.answer(handler.settings.loc.ping_youre_not_admin)
+        await message.answer(handler.settings.loc.ping_youre_not_admin, reply_markup=ReplyKeyboardRemove())
+
+PING_ANSWER_NEEDED = []
+
+@dp.message(Command('ping', ignore_case=True))
+async def command_ping_handler(message: TMessage):
+    if len(handlers) > 1:
+        kb = [[]]
+
+        for i, h in enumerate(handlers):
+            chats = [await tbot.get_chat(i) for i in h.telegram_channels]
+            chats_names = [i.full_name for i in chats]
+            res = '+'.join(chats_names)
+            res += f' ({i+1})'
+            kb[0].append(KeyboardButton(
+                text=res
+            ))
+
+        markup = ReplyKeyboardMarkup(
+            keyboard=kb,
+            resize_keyboard=True,
+            input_field_placeholder=loc.ping_select_handler
+        )
+        await message.answer(loc.ping_select_handler, reply_markup=markup)
+        PING_ANSWER_NEEDED.append(message.from_user.id)
+    else:
+        await send_ping_for_handler(message, handlers[0])
+
+@dp.message()
+async def command_ping_handler2(message: TMessage):
+    if (x := message.from_user.id) in PING_ANSWER_NEEDED:
+        PING_ANSWER_NEEDED.remove(x)
+        index = int(message.text.split('(')[-1].replace(')', '')) - 1
+
+        await send_ping_for_handler(message, handlers[index])
 
 
 @dp.channel_post()
