@@ -54,18 +54,20 @@ class Settings:
             loc: Localisation = Localisation(),
             reactions: list[int | str] = None,
             guild_id: int | None = None,
-            presence_telegram_link: str | None = None,
+            tgc_link_id: str | None = None,
             # booleans
             enable_auto_publish: bool = True,
             enable_message_footer: bool = False,
+            enable_post_author: bool = True,
     ):
         self.loc = loc
         self.reactions = reactions if reactions else []
         self.guild_id = guild_id
-        self.presence_telegram_link = presence_telegram_link
+        self.presence_telegram_link = f'https://t.me/{tgc_link_id}'
 
         self.auto_publish = enable_auto_publish
         self.message_footer = enable_message_footer
+        self.post_author = enable_post_author
 
 class Handler:
     def __init__(
@@ -85,11 +87,11 @@ class Handler:
         self.settings = settings
         self.ping_role_ids = ping_role_ids if ping_role_ids else []
 
-        self.dbot: DClient = None
-        self.tbot: TBot = None
+        self.dbot: DClient | None = None
+        self.tbot: TBot | None = None
         self.members = {}
 
-        self.__current_message: TMessage = None
+        self.__current_message: TMessage | None = None
 
     async def __send_reactions_to_message(self, sent_message: DMessage):
         try:
@@ -171,11 +173,15 @@ class Handler:
 
         dfile = await self.__get_dfile_from_file_id(file_id, spoiler) if file_id else None
 
-        author = message.author_signature
-        author = self.members.get(author, author)
-
         if self.settings.message_footer and content:
-            content += f'\n-# {author}・[{self.settings.loc.footer_message_link_text}](<{message.get_url()}>)'
+            content += '\n-# '
+
+            if self.settings.post_author:
+                username = message.from_user.username
+                author = self.members.get(username, message.author_signature)
+
+                content += f'[{author}](<https://t.me/{username}>)・'
+            content += f'[{self.settings.loc.footer_message_link_text}](<{message.get_url()}>)'
         return content, dfile
 
     def init(self, dbot: DClient, tbot: TBot, members: dict[str, str]) -> None:
@@ -187,7 +193,9 @@ class Handler:
         self.__current_message = message
 
         if message.chat.id not in self.telegram_channels:
+            print(f'Message not in handler channels: {message.chat.id}')
             return
+        print(f'Message in handler channels: {message.chat.id}')
 
         content, dfile = await self.__get_content_and_dfile(message)
 
@@ -209,7 +217,9 @@ class Handler:
         self.__current_message = message
 
         if message.chat.id not in self.telegram_channels:
+            print(f'Message not in handler channels: {message.chat.id}')
             return
+        print(f'Message in handler channels: {message.chat.id}')
 
         content, _ = await self.__get_content_and_dfile(message)
 

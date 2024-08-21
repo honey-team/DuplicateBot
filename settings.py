@@ -7,6 +7,7 @@ DISCORD_TOKEN = environ["DISCORD_TOKEN"]  # Don't change this name!!!
 # Localisation's settings
 loc = Localisation()  # Don't change this name!!! Used for localisation in telegram bot
 loc.start_message = 'Привет, %s!'  # %s - name of user who used /start command
+loc.ping_select_handler = 'Выберите хэндлер (кликните на кнопку)'
 loc.ping_succesful = 'Пинг девлога успешно отправлен!'
 loc.ping_not_enabled = 'В этом боте выключена возможность пинговать роль девлога!'
 loc.ping_youre_not_admin = 'Вы не администратор девлога!'
@@ -20,9 +21,10 @@ st = Settings(  # Also don't change this name! Used as global settings, but you 
     loc=loc,
     reactions=[like_id, dislike_id],
     guild_id=1141324357432528998,  # guild_id is required if one and more reactions are integers (custom emojies)
-    presence_telegram_link='https://t.me/HoneyTeamC',
+    tgc_link_id='HoneyTeamC',
     enable_auto_publish=True,
-    enable_message_footer=True
+    enable_message_footer=True,
+    enable_post_author=True
 )
 
 handlers: list[Handler] = [
@@ -30,6 +32,6 @@ handlers: list[Handler] = [
         1142537004542857336,
         -1002174772013,
         st,
-        [1146435141045076048]
+        [1268679721508405282]
     ),
 ]  # Don't change this name!!!
