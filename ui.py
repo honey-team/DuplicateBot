@@ -6,10 +6,10 @@ from markdownify import markdownify
 from aiogram.types import Message as TMessage
 from aiogram import Bot as TBot
 
-from discord import NotFound
-from discord import Client as DClient
-from discord import File as DFile
-from discord import Message as DMessage
+from disnake import NotFound
+from disnake import Client as DClient
+from disnake import File as DFile
+from disnake import Message as DMessage
 
 from jmessages import mload, mwrite
 
@@ -94,17 +94,19 @@ class Handler:
         self.__current_message: TMessage | None = None
 
     async def __send_reactions_to_message(self, sent_message: DMessage):
-        try:
-            if self.settings.reactions:
-                for reaction_id in self.settings.reactions:
-                    if isinstance(reaction_id, int):
-                        guild = self.dbot.get_guild(self.settings.guild_id)
-                        emoji = guild.get_emoji(reaction_id)
-                        await sent_message.add_reaction(emoji)
-                    else:
-                        await sent_message.add_reaction(reaction_id)
-        except NotFound:
-            return
+        # try:
+        if self.settings.reactions:
+            for reaction_id in self.settings.reactions:
+                if isinstance(reaction_id, int):
+                    if not self.settings.guild_id:
+                        raise ValueError('You need to define `guild_id` setting when you use custom emojies!')
+                    guild = self.dbot.get_guild(self.settings.guild_id)
+                    emoji = await  guild.fetch_emoji(reaction_id)
+                    await sent_message.add_reaction(emoji)
+                else:
+                    await sent_message.add_reaction(reaction_id)
+        # except NotFound:
+        #     return
 
     async def __send_message_to_devlog_in_discord(self, content: str, dfile: DFile) -> list[DMessage]:
         sent_messages = []

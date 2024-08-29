@@ -10,8 +10,8 @@ from aiogram.filters import CommandStart, Command
 from aiogram.types import ChatMemberOwner, ChatMemberAdministrator, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from aiogram.types import Message as TMessage
 
-from discord import Client, Intents, CustomActivity, Status
-from discord import Message as DMessage
+from disnake import Client, Intents, CustomActivity
+from disnake import Message as DMessage
 
 from json import loads
 
@@ -100,12 +100,13 @@ async def edited_channel_post_handler(message: TMessage):
 
 @dbot.event
 async def on_ready() -> None:
+    print('Bot is ready!')
     for h in handlers:
         h.init(dbot, tbot, members)
 
     if st.presence_telegram_link:
         activity = CustomActivity(name=st.presence_telegram_link)
-        await dbot.change_presence(activity=activity, status=Status.dnd)
+        await dbot.change_presence(activity=activity)
 
 @dbot.event
 async def on_message_delete(message: DMessage):
@@ -117,5 +118,5 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+    # logging.basicConfig(level=logging.INFO, stream=sys.stdout)
     asyncio.run(main())

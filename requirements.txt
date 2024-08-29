@@ -1,4 +1,4 @@
-discord.py>=2.3.2
+disnake>=2.9.2
 aiogram>=3.9.0
 ujson>=5.10.0
 markdownify>=0.13.1
